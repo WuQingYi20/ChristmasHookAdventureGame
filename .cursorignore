@@ -1,0 +1,21 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+
+# 首先忽略所有文件
+*
+
+# 不忽略 assets 目录（Cocos 项目的主要源代码目录）
+!assets/
+# 不忽略 assets 下的所有子目录
+!assets/*/
+!assets/*/*/
+!assets/*/*/*/
+
+# 只包含 TypeScript 文件
+!*.ts
+
+# 忽略一些不需要的目录和文件
+temp/
+library/
+local/
+build/
+node_modules/

@@ -1,0 +1,59 @@
+#//////////////////////////
+# Cocos Creator 项目
+#//////////////////////////
+library/
+temp/
+local/
+build/
+profiles/
+native/
+debug/
+.DS_Store
+*.meta
+#build templates
+build-templates/
+
+#//////////////////////////
+# 编辑器
+#//////////////////////////
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+#//////////////////////////
+# NPM
+#//////////////////////////
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+#//////////////////////////
+# TypeScript
+#//////////////////////////
+*.map
+*.js.map
+*.d.ts
+
+#//////////////////////////
+# 操作系统
+#//////////////////////////
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+#//////////////////////////
+# 其他
+#//////////////////////////
+*.log
+*.bak
