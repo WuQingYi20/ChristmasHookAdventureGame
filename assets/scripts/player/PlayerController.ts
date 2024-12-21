@@ -13,13 +13,22 @@ export enum PlayerState {
 export class PlayerController extends Component {
     // 移动相关属性
     @property({ type: CCFloat })
-    public moveSpeed: number = 5;
+    public moveSpeed: number = 8;
 
     @property({ type: CCFloat })
-    public jumpForce: number = 10;
+    public jumpForce: number = 15;
 
     @property({ type: CCFloat })
-    public gravity: number = -20;
+    public gravity: number = -25;
+
+    @property({ type: CCFloat })
+    public acceleration: number = 50;
+
+    @property({ type: CCFloat })
+    public airControl: number = 0.6;
+
+    @property({ type: CCFloat })
+    public maxSpeed: number = 12;
 
     // 状态控制
     private velocity: Vec3 = new Vec3();
@@ -98,7 +107,19 @@ export class PlayerController extends Component {
 
         if (this.rigidBody) {
             const currentVel = this.rigidBody.linearVelocity;
-            currentVel.x = this.inputDirection.x * this.moveSpeed;
+            let targetSpeedX = this.inputDirection.x * this.moveSpeed;
+            
+            // 空中移动控制
+            const controlFactor = this.isGrounded ? 1 : this.airControl;
+            
+            // 使用加速度平滑过渡到目标速度
+            const speedDiff = targetSpeedX - currentVel.x;
+            const acceleration = this.acceleration * controlFactor * deltaTime;
+            
+            // 应用加速度，但限制最大速度
+            currentVel.x += speedDiff * acceleration;
+            currentVel.x = Math.max(-this.maxSpeed, Math.min(this.maxSpeed, currentVel.x));
+            
             this.rigidBody.linearVelocity = currentVel;
         }
     }
