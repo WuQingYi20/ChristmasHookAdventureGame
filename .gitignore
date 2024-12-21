@@ -9,7 +9,6 @@ profiles/
 native/
 debug/
 .DS_Store
-*.meta
 #build templates
 build-templates/
 
