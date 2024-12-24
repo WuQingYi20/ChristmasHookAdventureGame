@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Vec3, input, Input, EventKeyboard, KeyCode, RigidBody, CCFloat, ERigidBodyType } from 'cc';
+import { _decorator, Component, Node, Vec3, input, Input, EventKeyboard, KeyCode, RigidBody2D, CCFloat, ERigidBody2DType, Contact2DType, Collider2D, IPhysics2DContact } from 'cc';
 const { ccclass, property } = _decorator;
 
 // 玩家状态枚举
@@ -13,20 +13,29 @@ export enum PlayerState {
 export class PlayerController extends Component {
     // 移动相关属性
     @property({ type: CCFloat })
-    public moveSpeed: number = 5;
+    public moveSpeed: number = 8;
 
     @property({ type: CCFloat })
-    public jumpForce: number = 10;
+    public jumpForce: number = 15;
 
     @property({ type: CCFloat })
-    public gravity: number = -20;
+    public gravity: number = -25;
+
+    @property({ type: CCFloat })
+    public acceleration: number = 50;
+
+    @property({ type: CCFloat })
+    public airControl: number = 0.6;
+
+    @property({ type: CCFloat })
+    public maxSpeed: number = 12;
 
     // 状态控制
     private velocity: Vec3 = new Vec3();
     private isGrounded: boolean = true;
     private canJump: boolean = true;
     private currentState: PlayerState = PlayerState.IDLE;
-    private rigidBody: RigidBody | null = null;
+    private rigidBody: RigidBody2D | null = null;
 
     // 输入控制
     private inputDirection: Vec3 = new Vec3();
@@ -34,15 +43,22 @@ export class PlayerController extends Component {
 
     // 生命周期方法
     onLoad() {
-        this.rigidBody = this.getComponent(RigidBody);
+        this.rigidBody = this.getComponent(RigidBody2D);
         if (this.rigidBody) {
             // 设置更合适的物理属性
             this.rigidBody.allowSleep = false;
             this.rigidBody.linearDamping = 0.1;
             this.rigidBody.angularDamping = 1;
-            // 防止旋转
-            this.rigidBody.type = ERigidBodyType.DYNAMIC;
-            this.rigidBody.angularFactor = Vec3.ZERO;
+            this.rigidBody.fixedRotation = true;
+            this.rigidBody.type = ERigidBody2DType.Dynamic;
+            this.rigidBody.enabledContactListener = true;
+            
+            // 获取碰撞体组件并设置
+            const collider = this.getComponent(Collider2D);
+            if (collider) {
+                collider.on(Contact2DType.BEGIN_CONTACT, this.onBeginContact, this);
+                collider.on(Contact2DType.END_CONTACT, this.onEndContact, this);
+            }
         }
         this.initializeInput();
     }
@@ -85,49 +101,41 @@ export class PlayerController extends Component {
             this.inputDirection.x += 1;
         }
 
-        // 标准化输入方向
         if (!this.inputDirection.equals(Vec3.ZERO)) {
             this.inputDirection.normalize();
         }
 
-        // 应用移动
-        const movement = new Vec3(
-            this.inputDirection.x * this.moveSpeed * deltaTime,
-            this.velocity.y,
-            0
-        );
-
         if (this.rigidBody) {
-            const currentVel = new Vec3();
-            this.rigidBody.getLinearVelocity(currentVel);
-            currentVel.x = movement.x;
-            currentVel.y = movement.y;
-            this.rigidBody.setLinearVelocity(currentVel);
-        } else {
-            const currentPos = this.node.position;
-            this.node.setPosition(
-                currentPos.x + movement.x,
-                currentPos.y + movement.y,
-                currentPos.z
-            );
+            const currentVel = this.rigidBody.linearVelocity;
+            let targetSpeedX = this.inputDirection.x * this.moveSpeed;
+            
+            // 空中移动控制
+            const controlFactor = this.isGrounded ? 1 : this.airControl;
+            
+            // 使用加速度平滑过渡到目标速度
+            const speedDiff = targetSpeedX - currentVel.x;
+            const acceleration = this.acceleration * controlFactor * deltaTime;
+            
+            // 应用加速度，但限制最大速度
+            currentVel.x += speedDiff * acceleration;
+            currentVel.x = Math.max(-this.maxSpeed, Math.min(this.maxSpeed, currentVel.x));
+            
+            this.rigidBody.linearVelocity = currentVel;
         }
     }
 
     private tryJump() {
         if (this.isGrounded && this.canJump) {
-            this.velocity.y = this.jumpForce;
             this.isGrounded = false;
             this.canJump = false;
             this.currentState = PlayerState.JUMPING;
 
             if (this.rigidBody) {
-                const currentVel = new Vec3();
-                this.rigidBody.getLinearVelocity(currentVel);
+                const currentVel = this.rigidBody.linearVelocity;
                 currentVel.y = this.jumpForce;
-                this.rigidBody.setLinearVelocity(currentVel);
+                this.rigidBody.linearVelocity = currentVel;
             }
 
-            // 添加跳跃冷却
             this.scheduleOnce(() => {
                 this.canJump = true;
             }, 0.1);
@@ -154,15 +162,20 @@ export class PlayerController extends Component {
     }
 
     // 碰撞检测
-    onBeginContact() {
-        this.isGrounded = true;
-        if (this.currentState === PlayerState.JUMPING) {
-            this.currentState = PlayerState.IDLE;
+    onBeginContact(selfCollider: Collider2D, otherCollider: Collider2D, contact: IPhysics2DContact | null) {
+        // 检查碰撞点的法线方向，确保是从上方碰撞
+        if (contact && contact.getWorldManifold()) {
+            const normal = contact.getWorldManifold().normal;
+            if (normal.y < 0) {
+                this.isGrounded = true;
+                if (this.currentState === PlayerState.JUMPING) {
+                    this.currentState = PlayerState.IDLE;
+                }
+            }
         }
     }
 
-    // 添加碰撞结束的处理
-    onEndContact() {
+    onEndContact(selfCollider: Collider2D, otherCollider: Collider2D, contact: IPhysics2DContact | null) {
         this.isGrounded = false;
         if (this.currentState !== PlayerState.JUMPING) {
             this.currentState = PlayerState.FALLING;
@@ -173,5 +186,11 @@ export class PlayerController extends Component {
     onDestroy() {
         input.off(Input.EventType.KEY_DOWN, this.onKeyDown, this);
         input.off(Input.EventType.KEY_UP, this.onKeyUp, this);
+        
+        const collider = this.getComponent(Collider2D);
+        if (collider) {
+            collider.off(Contact2DType.BEGIN_CONTACT, this.onBeginContact, this);
+            collider.off(Contact2DType.END_CONTACT, this.onEndContact, this);
+        }
     }
 }
